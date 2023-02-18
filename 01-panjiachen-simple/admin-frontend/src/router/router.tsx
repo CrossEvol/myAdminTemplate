@@ -43,7 +43,7 @@ export const router = createBrowserRouter([
                 element: <Form />
             },
             {
-                path: 'Nested',
+                path: 'nested',
                 element: <Nested />,
                 children: [
                     {

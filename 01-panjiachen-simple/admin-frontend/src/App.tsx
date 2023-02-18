@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import DashBoard from './views/dashboard'
 import styled from 'styled-components'
 import {
@@ -54,8 +54,27 @@ interface NavItem {
     title: string
     icon?: string
     path?: string
-    type: number 
+    type: number
     url?: string
+}
+
+/* 
+  level 层级 1-一级 2-二级 3-三级，计算距离的时候乘以2就可以了
+*/
+interface MenuItem {
+    id: number
+    title: string
+    icon?: string
+    path?: string
+    type: number
+    url?: string
+    level: number
+    children?: MenuItem[] | null
+}
+
+interface OpenItem {
+    id: number
+    open: boolean
 }
 
 const navItems: NavItem[] = [
@@ -89,7 +108,7 @@ const navItems: NavItem[] = [
         parentId: 0,
         title: 'External Link',
         icon: 'link',
-        path: 'https://www.bilibili.com/',
+        url: 'https://www.bilibili.com/',
         type: 2
     },
     {
@@ -97,7 +116,7 @@ const navItems: NavItem[] = [
         parentId: 0,
         title: 'Donate',
         icon: 'donate',
-        path: 'https://www.zhihu.com/',
+        url: 'https://www.zhihu.com/',
         type: 2
     },
     {
@@ -120,59 +139,93 @@ const navItems: NavItem[] = [
         id: 9,
         parentId: 4,
         title: 'Menu1',
-        path:'menu1',
+        path: '/nested/menu1',
         type: 1
     },
     {
         id: 10,
         parentId: 4,
         title: 'Menu2',
-        path: '/menu2',
-        type: 1
+        path: '/nested/menu2',
+        type: 0
     },
     {
         id: 11,
         parentId: 9,
         title: 'Menu1-1',
-        path: '/menu1-1',
+        path: '/nested/menu1/menu1-1',
         type: 0
     },
     {
         id: 12,
         parentId: 9,
         title: 'Menu1-2',
-        path: '/menu1-2',
+        path: '/nested/menu1/menu1-2',
         type: 1
     },
     {
         id: 13,
         parentId: 9,
         title: 'Menu1-3',
-        path: '/menu1-3',
+        path: '/nested/menu1/menu1-3',
         type: 0
     },
     {
         id: 14,
         parentId: 12,
         title: 'Menu1-2-1',
-        path: '/menu1-2-1',
+        path: '/nested/menu1/menu1-2/menu1-2-1',
         type: 0
     },
     {
         id: 15,
         parentId: 12,
         title: 'Menu1-2-2',
-        path: '/menu1-2-2',
+        path: '/nested/menu1/menu1-2/menu1-2-2',
         type: 0
-    },
+    }
 ]
+
+const mapIconStr2IconComponent = (iconStr: string) => {
+    switch (iconStr) {
+        case 'dashboard': {
+            return <DashboardIcon />
+        }
+        case 'example': {
+            return <WifiTetheringIcon />
+        }
+        case 'form': {
+            return <BackupTableIcon />
+        }
+        case 'nest': {
+            return <LineStyleIcon />
+        }
+        case 'link': {
+            return <OpenInNewIcon />
+        }
+        case 'donate': {
+            return <VolunteerActivismIcon />
+        }
+        case 'table': {
+            return <TableChartIcon />
+        }
+        case 'tree': {
+            return <AccountTreeIcon />
+        }
+        default: {
+            return <React.Fragment></React.Fragment>
+        }
+    }
+}
 
 export default function App() {
     const navigate = useNavigate()
+    let flag = true
     const [openExample, setOpenExample] = React.useState(false)
     const [openNested, setOpenNested] = React.useState(false)
     const [openMenu1, setOpenMenu1] = React.useState(false)
     const [openMenu1_2, setOpenMenu1_2] = React.useState(false)
+    const [openList, setOpenList] = React.useState<OpenItem[]>([])
 
     const handleClickExample = () => {
         setOpenExample(!openExample)
@@ -186,15 +239,146 @@ export default function App() {
     const handleClickMenu1_2 = () => {
         setOpenMenu1_2(!openMenu1_2)
     }
+    /* ---------------------------生成menuList开始 */
+
+    const menuItems: MenuItem[] = []
+
+    const buildLevelOneMenu = (menuItems: MenuItem[], navItems: NavItem[]) => {
+        navItems.forEach(navItem => {
+            if (navItem.parentId === 0) {
+                if (navItem.type === 1) {
+                    menuItems.push({ ...navItem, children: [], level: 1 })
+                } else {
+                    menuItems.push({ ...navItem, level: 1 })
+                }
+            }
+        })
+    }
+    buildLevelOneMenu(menuItems, navItems)
+
+    const buildSubMenus = (subMenuItems: MenuItem[], navItems: NavItem[]) => {
+        navItems.forEach(navItem => {
+            subMenuItems.forEach(menuItem => {
+                if (menuItem.children) {
+                    if (menuItem.id === navItem.parentId) {
+                        if (navItem.type === 1) {
+                            menuItem.children.push({
+                                ...navItem,
+                                children: [],
+                                level: menuItem.level + 1
+                            })
+                            buildSubMenus(menuItem.children, navItems)
+                        } else {
+                            menuItem.children.push({
+                                ...navItem,
+                                level: menuItem.level + 1
+                            })
+                        }
+                    }
+                }
+            })
+        })
+    }
+    buildSubMenus(menuItems, navItems)
+
+    /* ---------------------------生成menuList开始 */
+
+    useEffect(() => {
+        if (flag) {
+            console.log(menuItems)
+            const newOpenList = openList
+            const bulidOpenList = (subMenuItems: MenuItem[]) => {
+                subMenuItems.forEach(item => {
+                    if (item.children) {
+                        newOpenList.push({ id: item.id, open: false })
+                        bulidOpenList(item.children)
+                    }
+                })
+            }
+            bulidOpenList(menuItems)
+            setOpenList(newOpenList)
+        }
+
+        return () => {
+            flag = false
+        }
+    }, [])
+
+    const createMenuList = (menuItems: MenuItem[]) => {
+        return menuItems.map(item =>
+            item.type === 1 ? (
+                <React.Fragment key={item.id}>
+                    <ListItemButton
+                        sx={{ pl: 2 * item.level }}
+                        onClick={() => {
+                            console.log('first')
+                            setOpenList(
+                                openList.map(o =>
+                                    o.id === item.id
+                                        ? { ...o, open: !o.open }
+                                        : { ...o }
+                                )
+                            )
+                        }}
+                    >
+                        <ListItemIcon>
+                            {item.icon && mapIconStr2IconComponent(item.icon)}
+                        </ListItemIcon>
+                        <ListItemText primary={item.title} />
+                        {openList.find(i => i.id === item.id)?.open ? (
+                            <ExpandLess />
+                        ) : (
+                            <ExpandMore />
+                        )}
+                    </ListItemButton>
+                    <Collapse
+                        in={openList.find(i => i.id === item.id)?.open}
+                        timeout="auto"
+                        unmountOnExit
+                    >
+                        <List component="div" disablePadding>
+                            {item.children && createMenuList(item.children)}
+                        </List>
+                    </Collapse>
+                </React.Fragment>
+            ) : item.type === 2 ? (
+                <ListItemButton
+                    sx={{pl:item.level*2}}
+                    key={item.id}
+                    onClick={() => window.open(item.url)}
+                >
+                    <ListItemIcon>
+                        {item.icon && mapIconStr2IconComponent(item.icon)}
+                    </ListItemIcon>
+                    <ListItemText primary={item.title} />
+                </ListItemButton>
+            ) : (
+                <ListItemButton
+                    sx={{pl:item.level*2}}
+                    key={item.id}
+                    onClick={() =>
+                        navigate(`${item.path}`, {
+                            replace: false
+                        })
+                    }
+                >
+                    <ListItemIcon>
+                        {item.icon && mapIconStr2IconComponent(item.icon)}
+                    </ListItemIcon>
+                    <ListItemText primary={item.title} />
+                </ListItemButton>
+            )
+        )
+    }
 
     return (
         <AppContainer>
             <LeftAside>
-                <List
+              {/* 暂时保留，因为可以用来作最初版本的实例 */}
+             <> {/* <List
                     sx={{
                         width: '100%',
                         maxWidth: 360
-                        // bgcolor: 'background.paper'
                     }}
                     component="nav"
                     aria-labelledby="nested-list-subheader"
@@ -208,6 +392,7 @@ export default function App() {
                     }
                 >
                     <ListItemButton
+                        sx={{ pl: 2 }}
                         onClick={() =>
                             navigate('/dashboard', { replace: false })
                         }
@@ -274,7 +459,6 @@ export default function App() {
                                 onClick={handleClickMenu1}
                             >
                                 <ListItemIcon>
-                                    {/* <StarBorder /> */}
                                 </ListItemIcon>
                                 <ListItemText primary="Menu1" />
                                 {openMenu1 ? <ExpandLess /> : <ExpandMore />}
@@ -287,7 +471,6 @@ export default function App() {
                                 <List component="div" disablePadding>
                                     <ListItemButton sx={{ pl: 6 }}>
                                         <ListItemIcon>
-                                            {/* <StarBorder /> */}
                                         </ListItemIcon>
                                         <ListItemText primary="Menu1-1" />
                                     </ListItemButton>
@@ -296,7 +479,6 @@ export default function App() {
                                         onClick={handleClickMenu1_2}
                                     >
                                         <ListItemIcon>
-                                            {/* <StarBorder /> */}
                                         </ListItemIcon>
                                         <ListItemText primary="Menu1-2" />
                                         {openMenu1_2 ? (
@@ -313,13 +495,11 @@ export default function App() {
                                         <List component="div" disablePadding>
                                             <ListItemButton sx={{ pl: 8 }}>
                                                 <ListItemIcon>
-                                                    {/* <StarBorder /> */}
                                                 </ListItemIcon>
                                                 <ListItemText primary="Menu1-2-1" />
                                             </ListItemButton>
                                             <ListItemButton sx={{ pl: 8 }}>
                                                 <ListItemIcon>
-                                                    {/* <StarBorder /> */}
                                                 </ListItemIcon>
                                                 <ListItemText primary="Menu1-2-2" />
                                             </ListItemButton>
@@ -327,7 +507,6 @@ export default function App() {
                                     </Collapse>
                                     <ListItemButton sx={{ pl: 6 }}>
                                         <ListItemIcon>
-                                            {/* <StarBorder /> */}
                                         </ListItemIcon>
                                         <ListItemText primary="Menu1-3" />
                                     </ListItemButton>
@@ -335,7 +514,6 @@ export default function App() {
                             </Collapse>
                             <ListItemButton sx={{ pl: 4 }}>
                                 <ListItemIcon>
-                                    {/* <StarBorder /> */}
                                 </ListItemIcon>
                                 <ListItemText primary="Menu2" />
                             </ListItemButton>
@@ -353,6 +531,26 @@ export default function App() {
                         </ListItemIcon>
                         <ListItemText primary="Donate" />
                     </ListItemButton>
+                </List> */}</>
+               
+                <List
+                    sx={{
+                        width: '100%',
+                        maxWidth: 360
+                        // bgcolor: 'background.paper'
+                    }}
+                    component="nav"
+                    aria-labelledby="nested-list-subheader"
+                    subheader={
+                        <ListSubheader
+                            component="div"
+                            id="nested-list-subheader"
+                        >
+                            Menu List Items
+                        </ListSubheader>
+                    }
+                >
+                    {menuItems.length > 0 && createMenuList(menuItems)}
                 </List>
             </LeftAside>
             <RightMain>
